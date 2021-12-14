@@ -7,7 +7,7 @@ What does it do?
 
 It will allow end users to input a project start date and a project end date. The code then uses this to create a calendar on the same sheet which will cover from the project start date to the end of the month after the end date. Weekends are in grey cells and todays date is in a yellow cell.
 
-Users can then enter takes below this. For a task they need to enter a title, a start date and the number of working days to complete the task. There is event driven code that will
+Users can then enter tasks below this. For a task they need to enter a title, a start date and the number of working days to complete the task. There is event driven code that will
 a. update a cell with the percentage of progress so far
 b. a check box will be created. This will delete if the task details are deleted
 c. a bar will be drawn on the calendar that covers the task dates but not including weekends. The bars will delete if the task details are removing.
