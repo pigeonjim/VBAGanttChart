@@ -1,0 +1,222 @@
+Private Sub Worksheet_Change(ByVal Target As Range)
+
+Application.ScreenUpdating = False
+Application.EnableEvents = False
+ 
+'Check that dictionary and objects are initalised. If not then initalise
+If TaskDict Is Nothing Then 'Dict of CTask objects
+    Set TaskDict = CreateObject("Scripting.Dictionary")
+End If
+
+If Calander1 Is Nothing Then 'CClanader object
+    Set Calander1 = New CCalander
+End If
+
+Dim ObjectName As String
+Dim CurrentObject As CTask
+ObjectName = "Task" & Target.Row
+
+
+'*************
+If Target.Cells.Count > 1 Then 'If more than more cell in target range
+    GanttSheet.Unprotect
+    
+    Dim RowCounter As Long
+    For RowCounter = Target.Row To Target.Row + Target.Rows.Count
+        
+          ObjectName = "Task" & RowCounter
+        
+        If Cells(RowCounter, 5) = "" And Cells(RowCounter, 6) = "" Then 'if there is no start date and no day to complete clear row and delete object
+            Range(Cells(RowCounter, 7), Cells(RowCounter, 250)).Clear
+            Cells(RowCounter, 1).Clear
+                If TaskDict.exists(ObjectName) Then
+                    TaskDict.Remove ObjectName
+                End If
+            Cells(RowCounter, 4).Clear ' remove percentage complete
+        Else 'update object with new start date and days to complete
+             Range(Cells(RowCounter, 7), Cells(RowCounter, 250)).Clear
+            If TaskDict.exists(ObjectName) Then
+                TaskDict(ObjectName).WhatIsStartDate = Cells(RowCounter, 5)
+                TaskDict(ObjectName).TimeToComplete = Cells(RowCounter, 6)
+            Else 'if object does not exist then add
+                Set Task = New CTask
+                TaskDict.Add ObjectName, Task
+                TaskDict(ObjectName).WhatRow = RowCounter
+                TaskDict(ObjectName).WhatIsStartDate = Cells(RowCounter, 5)
+                TaskDict(ObjectName).TimeToComplete = Cells(RowCounter, 6)
+            End If
+        End If
+    Next RowCounter
+
+    Call RefreshAllBars
+    
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+    Call SheetProtection
+    Exit Sub
+End If
+
+'****If project start date is changed****
+
+If Target.Address = "$C$5" And Cells(5, 3) = "" Then
+    Calander1.SetProjectEndDste
+    Calander1.SetProjectStartDate
+    Calander1.ClearCalander
+Application.ScreenUpdating = True
+Application.EnableEvents = True
+Exit Sub
+End If
+
+If Target.Address = "$C$5" And Cells(5, 3) <> "" Then
+    Calander1.ClearCalander
+    Calander1.SetProjectStartDate
+    Calander1.CalanderFirstMonth
+    Calander1.SetProjectEndDste
+    
+    If Calander1.ProjectEndDate <> 0 Then
+    Calander1.CalanderFurtherMonths
+    End If
+    Call RefreshAllBars
+End If
+
+''****If project end date is changed****
+If Target.Address = "$C$4" Then
+    Calander1.ClearCalander
+    Calander1.SetProjectEndDste
+    Calander1.SetProjectStartDate
+    If Calander1.ProjectStartDate = 0 Then
+Application.ScreenUpdating = True
+Application.EnableEvents = True
+    Exit Sub
+    Else
+    Calander1.CalanderFirstMonth
+    Calander1.SetProjectEndDste
+    End If
+
+    If Calander1.ProjectEndDate <> 0 Then
+    Calander1.CalanderFurtherMonths
+    End If
+    Call RefreshAllBars
+End If
+
+'****If a task start date is changed****
+If Target.Column = 5 And Target.Row > 7 Then
+    
+    If Not CheckForDate(Target.Value) Then
+Application.ScreenUpdating = True
+Application.EnableEvents = True
+    Exit Sub
+    End If
+
+    '**If task start date and days to complete are now blank
+    If IsEmpty(Target.Value) And IsEmpty(Target.Offset(0, 1).Value) Then
+        If TaskDict.exists(ObjectName) Then 'If CTask exists for row
+            TaskDict(ObjectName).ClearRow 'clear the bar
+            TaskDict(ObjectName).RemoveDropDown 'remove the dropdown
+            Cells(Target.Row, 1).Clear 'clear dropdown cell
+            Cells(Target.Row, 4).Clear 'clear percent complete
+            TaskDict.Remove ObjectName 'delete CTask object
+        End If
+    End If
+   
+    '**If either a task start date OR a days to complete exist (but not both)
+    If Not IsEmpty(Target.Value) Xor Not IsEmpty(Target.Offset(0, 1).Value) Then
+    
+            If Not TaskDict.exists(ObjectName) Then 'Create CTask object and add to dictionary if it does not already exist
+                Set Task = New CTask
+                TaskDict.Add ObjectName, Task
+                TaskDict(ObjectName).WhatRow = Target.Row
+            End If
+        TaskDict(ObjectName).ClearRow 'clear the bar
+
+        TaskDict(ObjectName).AddDropDown 'if dropdown does not exist then add one
+    End If
+    
+    '**If both a task start date and a days to complete exist
+    If Not IsEmpty(Target.Value) And Not IsEmpty(Target.Offset(0, 1).Value) Then
+    
+            If Not TaskDict.exists(ObjectName) Then 'Create CTask object and add to dictionary if it does not already exist
+                Set Task = New CTask
+                TaskDict.Add ObjectName, Task
+                TaskDict(ObjectName).WhatRow = Target.Row
+            End If
+                TaskDict(ObjectName).WhatIsStartDate = Target.Value
+                TaskDict(ObjectName).TimeToComplete = Target.Offset(0, 1).Value
+                TaskDict(ObjectName).ClearRow 'clear the bar
+                TaskDict(ObjectName).AddDropDown 'if dropdown does not exist then add one
+        
+        If Calander1.ProjectStartDate = 0 Then
+            MsgBox "There is no project start date"
+        Else
+            TaskDict(ObjectName).DrawBar 'draw the bar
+        End If
+    End If
+            
+End If
+
+'****If a task days to complete is changed****
+If Target.Column = 6 And Target.Row > 7 Then
+    
+    If Not CheckForDate(Target.Offset(0, -1).Value) Then
+Application.ScreenUpdating = True
+Application.EnableEvents = True
+    Exit Sub
+    End If
+
+    '**If task start date and days to complete are now blank
+    If IsEmpty(Target.Value) And IsEmpty(Target.Offset(0, -1).Value) Then
+        If TaskDict.exists(ObjectName) Then 'If CTask exists for row
+            TaskDict(ObjectName).ClearRow 'clear the bar
+            TaskDict(ObjectName).RemoveDropDown 'remove the dropdown
+            Cells(Target.Row, 1).Clear 'clear dropdown cell
+            TaskDict.Remove ObjectName 'delete CTask object
+        End If
+    End If
+    
+    '**If either a task start date OR a days to complete exist (but not both)
+    If Not IsEmpty(Target.Value) Xor Not IsEmpty(Target.Offset(0, -1).Value) Then
+    
+            If Not TaskDict.exists(ObjectName) Then 'Create CTask object and add to dictionary if it does not already exist
+                Set Task = New CTask
+                TaskDict.Add ObjectName, Task
+                TaskDict(ObjectName).WhatRow = Target.Row
+            End If
+        TaskDict(ObjectName).ClearRow 'clear the bar
+
+        TaskDict(ObjectName).AddDropDown 'if dropdown does not exist then add one
+    End If
+    
+    '**If both a task start date and a days to complete exist
+    If Not IsEmpty(Target.Value) And Not IsEmpty(Target.Offset(0, -1).Value) Then
+    
+            If Not TaskDict.exists(ObjectName) Then 'Create CTask object and add to dictionary if it does not already exist
+                Set Task = New CTask
+                TaskDict.Add ObjectName, Task
+                TaskDict(ObjectName).WhatRow = Target.Row
+            End If
+                TaskDict(ObjectName).WhatIsStartDate = Target.Offset(0, -1).Value
+                TaskDict(ObjectName).TimeToComplete = Target.Value
+        TaskDict(ObjectName).ClearRow 'clear the bar
+        TaskDict(ObjectName).AddDropDown 'if dropdown does not exist then add one
+        
+        If Calander1.ProjectStartDate = 0 Then
+            MsgBox "There is no project start date"
+        Else
+            TaskDict(ObjectName).DrawBar 'draw the bar
+        End If
+    End If
+            
+End If
+
+'****If dropdown value is changed****
+If Target.Column <> 5 And Target.Column <> 6 Then
+    If Cells(Target.Row, 5) > 0 And Cells(Target.Row, 6) > 0 Then
+        If Target.Column = 1 And Target.Row > 7 Then
+        TaskDict(ObjectName).DrawBar
+        End If
+    End If
+End If
+
+Application.EnableEvents = True
+Application.ScreenUpdating = True
+End Sub
