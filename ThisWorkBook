@@ -1,0 +1,22 @@
+Option Explicit
+
+Private Sub Workbook_Open()
+Application.EnableEvents = False
+
+'Inialise CClanader object and redraw calander
+    Set TaskDict = CreateObject("Scripting.Dictionary")
+    Set Calander1 = New CCalander
+    Calander1.ClearCalander
+    Calander1.SetProjectStartDate
+    Calander1.CalanderFirstMonth
+    Calander1.SetProjectEndDste
+    
+    If Calander1.ProjectEndDate <> 0 Then
+        Calander1.CalanderFurtherMonths
+    End If
+
+Call RefreshAllBars
+Call SheetProtection
+Application.EnableEvents = True
+Application.ScreenUpdating = True
+End Sub
