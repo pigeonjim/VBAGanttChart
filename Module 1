@@ -1,0 +1,170 @@
+Option Explicit
+Public Task As New CTask
+Public Calander1 As New CCalander
+Public TaskDict As Object 'Dictionary to hold all CTask objects
+Public Const LineInSand As Date = "03/01/2021" 'first sunday in 2021
+
+
+'module of public functions for gantt chart
+
+Public Sub SheetProtection()
+'sub to change permission on sheet. It prevents end users adding or deleting rows and columns
+GanttSheet.Unprotect
+Range(Cells(4, 3), Cells(5, 3)).Locked = False
+Range(Cells(8, 1), Cells(500, 3)).Locked = False
+Range(Cells(8, 5), Cells(500, 6)).Locked = False
+GanttSheet.Protect Password:=vbNullString, UserInterfaceOnly:=True, AllowFormattingCells:=True, AllowFormattingColumns:=True, AllowFormattingRows:=True, AllowInsertingColumns:=False, _
+AllowInsertingRows:=False, AllowInsertingHyperlinks:=True, AllowDeletingColumns:=False, AllowDeletingRows:=False, AllowSorting:=False, AllowFiltering:=True, AllowUsingPivotTables:=False
+End Sub
+
+Public Function Exists_by_CurrentRowNo(RowNo As Integer, ByRef DicName As Object) As Boolean
+'Function to check if an object exists with a CurrentRow of RowNo. Variables are RowNo as Int and the dictionary to look in.
+'A boolean is returned by the function; True if object exists
+Dim exists As Boolean
+Dim Key As Variant
+
+exists = False
+
+For Each Key In DicName.keys
+    If DicName(Key).WhatRow = RowNo Then
+        exists = True
+    End If
+Next Key
+Exists_by_CurrentRowNo = exists
+
+End Function
+
+Public Function CheckForObject(ByVal ObName As String, ByRef WrkSh As Worksheet) As Boolean
+'Function will check if a an object exists by name. Variables passed are the name of the object and the worksheet to check.
+'This will be used to check for checkbox
+    On Error GoTo objectExists_Error
+
+    Dim someOle As OLEObject
+    Set someOle = WrkSh.OLEObjects(ObName)
+    CheckForObject = True
+
+    On Error GoTo 0
+    Exit Function
+
+objectExists_Error:
+    CheckForObject = False
+
+End Function
+
+Public Function DropDownExists(CheckCell As Range) As Boolean
+    On Error GoTo Error
+    
+    Dim temp As Variant
+    temp = CheckCell.Validation.Type
+    DropDownExists = True
+    Exit Function
+Error:
+    DropDownExists = False
+
+End Function
+
+Public Function CheckForDate(DateToCheck As Variant) As Boolean
+'funtion checks that data in cell is a date, 0 or empty
+    If IsDate(DateToCheck) Or IsEmpty(DateToCheck) Or DateToCheck = 0 Then
+    CheckForDate = True
+    Else
+    CheckForDate = False
+    End If
+End Function
+Public Sub RefreshAllBars()
+
+GanttSheet.Unprotect
+
+'sub will refresh bars for all tasks
+'For every row that has a task start date and a task days to complete check that an object exists.
+
+    Dim NoStartDates As Integer
+    Dim RowCounter As Long
+    Dim ObjectName As String
+    
+    NoStartDates = Application.WorksheetFunction.CountA(Range("E:E")) - 1 'Find how many rows have a start date
+    RowCounter = 8 'Start looking on row 8
+
+While NoStartDates > 0
+
+    If Cells(RowCounter, 5) > 0 And Cells(RowCounter, 6) > 0 Then 'check for start date and days to complete
+        ObjectName = "Task" & RowCounter
+        If Not TaskDict.exists(ObjectName) Then 'Create CTask object and add to dictionary if it does not already exist
+                Set Task = New CTask
+                TaskDict.Add ObjectName, Task
+        End If
+    
+        TaskDict(ObjectName).WhatRow = RowCounter
+            If Cells(RowCounter, 5) < Cells(5, 3) Then 'If task start date is before the new project start date then alter task start date
+                Cells(RowCounter, 5) = Cells(5, 3)
+            End If
+        TaskDict(ObjectName).WhatIsStartDate = Cells(RowCounter, 5)
+        TaskDict(ObjectName).TimeToComplete = Cells(RowCounter, 6)
+    End If
+    
+
+NoStartDates = NoStartDates - 1
+RowCounter = RowCounter + 1
+Wend
+
+
+Dim Key As Variant
+    For Each Key In TaskDict.keys
+                TaskDict(Key).WhatIsStartDate = Cells(TaskDict(Key).WhatRow, 5)
+                TaskDict(Key).TimeToComplete = Cells(TaskDict(Key).WhatRow, 6)
+            If TaskDict(Key).WhatIsStartDate >= Calander1.ProjectStartDate And TaskDict(Key).TimeToComplete > 0 Then
+                TaskDict(Key).DrawBar
+                TaskDict(Key).PercentageCalc
+            End If
+    Next Key
+Call SheetProtection
+End Sub
+
+Function IsLeapYear(ByVal CheckDate As Date) As Boolean
+'Function will return true if year is a leap year
+Dim YearToCheck As Integer
+
+YearToCheck = Year(CheckDate)
+
+If YearToCheck Mod 400 = 0 Then 'if year can be divided by 400 with no remainder
+    IsLeapYear = True
+    
+ElseIf YearToCheck Mod 100 = 0 Then 'but if it is  divisible by 100 then it is not a leap year
+    IsLeapYear = False
+
+ElseIf YearToCheck Mod 4 = 0 Then 'but if IsLeapYear by 4 then it is a leap year
+    IsLeapYear = True
+
+Else
+    IsLeapYear = False
+End If
+    
+End Function
+
+Function LeapDayYears(DateToCheck As Date) As Integer
+'Function will calculate how many extra days have been added by leap years
+Dim NoOfLeapYears As Double
+
+NoOfLeapYears = Application.WorksheetFunction.RoundDown((Year(DateToCheck) - 2020) / 4, 0)
+
+If Month(DateToCheck) > 2 Then 'if month is after february calculate number of leap days so far
+    LeapDayYears = NoOfLeapYears
+Else 'if date is in Jan or Feb check if year is a leap year
+    If IsLeapYear(DateToCheck) And NoOfLeapYears > 0 Then
+        LeapDayYears = NoOfLeapYears - 1
+    Else
+        LeapDayYears = NoOfLeapYears
+    End If
+End If
+End Function
+
+
+Sub main()
+Application.EnableEvents = True
+Application.ScreenUpdating = True
+ Dim temp
+temp = LeapDayYears("01/03/2023")
+
+Debug.Print temp
+
+End Sub
