@@ -1,0 +1,245 @@
+    Private StartDate As Date
+    Private EndDate As Date
+    Private SheetName As String
+    Private DaysInMonth(1 To 12, 1 To 2) As Variant
+    Private ProjectStartMonth As Integer
+    Private DaysInStartMonth As Integer
+    Private DateOfFirstDay As Integer
+
+Private Sub Class_Initialize()
+If Cells(5, 3) <> "" Then
+    Me.SetProjectStartDate 'get project start date
+End If
+
+Me.SetSheetName 'get sheet name
+
+'populate arrays
+    DaysInMonth(1, 1) = "January"
+    DaysInMonth(2, 1) = "February"
+    DaysInMonth(3, 1) = "March"
+    DaysInMonth(4, 1) = "April"
+    DaysInMonth(5, 1) = "May"
+    DaysInMonth(6, 1) = "June"
+    DaysInMonth(7, 1) = "July"
+    DaysInMonth(8, 1) = "August"
+    DaysInMonth(9, 1) = "September"
+    DaysInMonth(10, 1) = "October"
+    DaysInMonth(11, 1) = "November"
+    DaysInMonth(12, 1) = "December"
+    
+    DaysInMonth(1, 2) = 31
+    DaysInMonth(2, 2) = 28
+    DaysInMonth(3, 2) = 31
+    DaysInMonth(4, 2) = 30
+    DaysInMonth(5, 2) = 31
+    DaysInMonth(6, 2) = 30
+    DaysInMonth(7, 2) = 31
+    DaysInMonth(8, 2) = 31
+    DaysInMonth(9, 2) = 30
+    DaysInMonth(10, 2) = 31
+    DaysInMonth(11, 2) = 30
+    DaysInMonth(12, 2) = 31
+End Sub
+
+Public Property Get ProjectStartDate() As Date
+ProjectStartDate = StartDate
+End Property
+
+Public Sub SetProjectStartDate()
+Dim CellValue As Variant
+
+If Cells(5, 3) = "" Then
+StartDate = 0
+ Call Me.ClearCalander
+    Exit Sub
+End If
+
+CellValue = DateValue("01/01/2021")
+
+    While (Cells(5, 3) < CellValue) Or Not (IsDate(Cells(5, 3)))
+    Application.Goto ActiveSheet.Cells(5, 3), True
+    Cells(5, 3) = CDate(Application.InputBox(Prompt:="Value entered must be a date after 01/01/2021", Title:="Incorrect date", Default:=CellValue))
+    Wend
+StartDate = Cells(5, 3)
+End Sub
+
+Public Function SetSheetName()
+SheetName = ActiveSheet.Name
+End Function
+
+Public Property Get WhatSheet() As String
+WhatSheet = SheetName
+End Property
+
+Public Property Get ProjectEndDate() As Date
+ProjectEndDate = EndDate
+End Property
+
+Public Sub SetProjectEndDste()
+
+If Cells(4, 3) = "" Or Cells(5, 3) = "" Then
+    EndDate = 0
+    Exit Sub
+End If
+
+    Dim CellValue As Variant
+    CellValue = Format(StartDate + 1, "dd/mm/yyyy")
+    While (Cells(4, 3) <= Cells(5, 3)) Or Not (IsDate(Cells(4, 3)))
+    Application.Goto ActiveSheet.Cells(4, 3), True
+    Cells(4, 3) = CDate(Application.InputBox(Prompt:="Value entered must be a date after the project start date", Title:="Incorrect date", Default:=CellValue))
+    Wend
+EndDate = Cells(4, 3)
+End Sub
+
+Public Sub ClearCalander()
+
+GanttSheet.Unprotect
+Range("6:6").UnMerge
+Range(Cells(6, 7), Cells(500, 500)).Clear
+Call SheetProtection
+
+End Sub
+    
+Public Sub CalanderFirstMonth()
+
+Dim LeapYearDay As Integer
+LeapYearDay = 0
+GanttSheet.Unprotect
+    ProjectStartMonth = Month(StartDate)
+    DaysInStartMonth = DaysInMonth(ProjectStartMonth, 2)
+    DateOfFirstDay = Day(StartDate)
+
+Dim counter1 As Integer
+
+Me.ClearCalander
+
+If IsEmpty(StartDate) Then 'if there is no project start date clear calander then end sub
+Exit Sub
+End If
+
+If IsLeapYear(StartDate) And Month(StartDate) = 2 Then 'check for leap year
+LeapYearDay = 1
+End If
+
+'Input current month name into sheet and merge cells that number the days in that month
+Cells(6, 7) = DaysInMonth(ProjectStartMonth, 1) & "                                                                "
+Cells(6, 7).Font.Bold = True
+Cells(6, 7).Font.Size = 16
+With Range(Cells(6, 7), Cells(6, 7 + DaysInStartMonth - DateOfFirstDay + LeapYearDay))
+.Merge
+.HorizontalAlignment = xlHAlignFill
+End With
+'Populate the Day and Number for each day in start month
+For counter1 = 0 To DaysInStartMonth - DateOfFirstDay + LeapYearDay
+Cells(7, 7 + counter1) = counter1 + DateOfFirstDay
+
+If DateIsWeekend(StartDate + counter1) Then
+    Cells(7, 7 + counter1).Interior.Color = RGB(200, 200, 200) 'if date is a weekend colour then in grey
+End If
+
+If StartDate + counter1 = Date Then
+    Cells(7, 7 + counter1).Interior.Color = RGB(255, 255, 0) 'colour today in yellow
+End If
+
+Next counter1
+
+Call SheetProtection
+    
+End Sub
+
+Public Sub CalanderFurtherMonths()
+Dim CountOfDays As Integer
+Dim MonthNo As Integer
+Dim MonthCounter As Integer
+Dim NoMonthsLeft As Integer
+Dim LastMonthNo As Integer
+Dim WeekendCheckDate As Date
+Dim LeapYearDay As Integer
+'Dim SatSunLeapYearDay As Integer
+
+LeapYearDay = 0
+'SatSunLeapYearDay = 0
+    ProjectStartMonth = Month(StartDate)
+    DaysInStartMonth = DaysInMonth(ProjectStartMonth, 2)
+    DateOfFirstDay = Day(StartDate)
+
+
+If IsEmpty(EndDate) Or EndDate < StartDate Then 'if there is no valid project end date end sub
+Exit Sub
+End If
+
+If IsLeapYear(StartDate) And Month(StartDate) = 2 Then 'check for leap year in start month
+LeapYearDay = 1
+End If
+
+LastMonthNo = Month(EndDate)
+  
+'Work out how many extra months to add to calander
+If LastMonthNo < ProjectStartMonth Then 'if last month is in a new calander year
+    NoMonthsLeft = (12 - ProjectStartMonth) + LastMonthNo
+Else ' if last month is in same calander year
+    NoMonthsLeft = LastMonthNo - ProjectStartMonth
+End If
+
+    'set CountOfDays to the column number of the first day of month 2
+    CountOfDays = 7 + DaysInStartMonth - DateOfFirstDay + 1 + LeapYearDay
+    
+MonthNo = Month(StartDate)
+
+WeekendCheckDate = StartDate + CountOfDays - 7
+
+'**populate calander remaining months of project. Which is the go live date plus 1 month**
+For MonthCounter = 1 To NoMonthsLeft + 1
+        
+    MonthNo = MonthNo + 1 'Increment MonthNo by 1 month
+    
+        If MonthNo > 12 Then
+        MonthNo = MonthNo - 12
+        End If
+    
+    ThisWorkbook.Worksheets(SheetName).Activate
+    Cells(6, CountOfDays) = DaysInMonth(MonthNo, 1) & "                                                                   "
+    Cells(6, CountOfDays).Font.Bold = True
+    Cells(6, CountOfDays).Font.Size = 16
+ 
+    'date numbers - first update leapyear day variable
+    If IsLeapYear(WeekendCheckDate) And MonthNo = 2 Then 'check for leap year in start month
+        LeapYearDay = 1
+    Else
+        LeapYearDay = 0
+    End If
+    
+   With Range(Cells(6, CountOfDays), Cells(6, CountOfDays + DaysInMonth(MonthNo, 2) - 1 + LeapYearDay))
+    .Merge
+    .HorizontalAlignment = xlHAlignFill
+    End With
+    
+        For Counter2 = 0 To DaysInMonth(MonthNo, 2) - 1 + LeapYearDay
+           
+        Cells(7, CountOfDays + Counter2) = Counter2 + 1
+        If DateIsWeekend(WeekendCheckDate) Then
+            Cells(7, CountOfDays + Counter2).Interior.Color = RGB(200, 200, 200) 'if date is a weekend colour then in grey
+        End If
+
+        If WeekendCheckDate = Date Then
+            Cells(7, CountOfDays + Counter2).Interior.Color = RGB(255, 255, 0) 'colour today in yellow
+        End If
+        WeekendCheckDate = WeekendCheckDate + 1
+        Next Counter2
+    CountOfDays = CountOfDays + DaysInMonth(MonthNo, 2) + LeapYearDay
+Next MonthCounter
+End Sub
+
+Function DateIsWeekend(DateToCheck As Date) As Boolean
+'Will return true of date checked is weekend
+Dim DayNo As Integer
+
+DayNo = (DateDiff("D", LineInSand + LeapDayYears(DateToCheck), DateToCheck) + LeapDayYears(DateToCheck)) Mod 7
+Select Case DayNo
+Case 6, 0
+DateIsWeekend = True
+Case Else
+DateIsWeekend = False
+End Select
+
+End Function
