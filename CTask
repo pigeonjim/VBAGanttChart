@@ -1,0 +1,280 @@
+Private TaskStartDate As Date
+Private DaysToComplete As Integer
+Private SheetRef As String
+Private RowNo As Integer
+
+Private Sub Class_Initialize()
+Me.SetSheetName
+End Sub
+
+Public Property Let WhatRow(RowNumber As Integer)
+RowNo = RowNumber
+End Property
+
+Public Property Get WhatRow() As Integer
+WhatRow = RowNo
+End Property
+
+Public Function SetSheetName()
+SheetRef = ActiveSheet.Name
+End Function
+
+Public Property Get WhatSheet() As String
+WhatSheet = SheetRef
+End Property
+
+Public Property Let WhatIsStartDate(DateStart As Date)
+
+If DateStart = 0 Then
+    TaskStartDate = 0
+    Exit Property
+End If
+
+While DateStart < Cells(5, 3)
+    DateStart = Application.InputBox(Prompt:="Task start date can not be before project start date.", Default:=Format(CDate(Cells(5, 3)), "dd/mm/yyyy"), Title:="Incorrect input", Type:=1)
+Wend
+
+Cells(RowNo, 5).Value = DateStart
+
+TaskStartDate = DateStart
+End Property
+
+Public Property Get WhatIsStartDate() As Date
+WhatIsStartDate = TaskStartDate
+End Property
+
+Public Property Let TimeToComplete(NoOfDays As Integer)
+    'Check that the days to complete is not too large
+    
+    If IsEmpty(NoOfDays) Then
+    DaysToComplete = 0
+    Exit Property
+    End If
+    
+    While NoOfDays > 200
+    NoOfDays = Application.InputBox(Prompt:="Days to complete is too large. Please enter a lower number of days.", Default:=1, Title:="Incorrect input", Type:=1)
+    Wend
+DaysToComplete = CInt(NoOfDays)
+
+If DaysToComplete <> 0 Then
+
+ThisWorkbook.Worksheets(SheetRef).Cells(RowNo, 6).Value = DaysToComplete 'Populate cell
+
+End If
+
+End Property
+
+Public Property Get TimeToComplete() As Integer
+TimeToComplete = DaysToComplete
+End Property
+
+
+Public Function WorkingDaysSoFar() As Integer
+'function to return number of working days have passed since task start date
+Dim TotalDays As Integer
+Dim DateToCheck  As Date
+Dim DayNo As Integer
+
+'Count number of working days since task start date including today
+TotalDays = 0
+DateToCheck = TaskStartDate
+
+While DateToCheck <= Date And TotalDays < DaysToComplete
+    DayNo = DateDiff("D", LineInSand + LeapDayYears(DateToCheck), DateToCheck) Mod 7
+    
+    Select Case DayNo
+    Case 6, 0
+    'weekend so no increment
+    Case Else
+    TotalDays = TotalDays + 1
+    End Select
+    
+    DateToCheck = DateToCheck + 1
+Wend
+
+WorkingDaysSoFar = TotalDays
+
+End Function
+
+Public Sub PercentageCalc()
+GanttSheet.Unprotect
+
+If TaskStartDate < 1 Or DaysToComplete < 1 Then
+    'If days to complete or start is blank then remove percentage
+    Cells(RowNo, 4).ClearContents
+Else
+'If days to complete and start date are available then refresh percentage
+        If WorkingDaysSoFar < DaysToComplete And Date > TaskStartDate Then
+            Cells(RowNo, 4) = FormatPercent(WorkingDaysSoFar / DaysToComplete, 0)
+        Else
+            If WorkingDaysSoFar >= DaysToComplete Then
+            Cells(RowNo, 4) = FormatPercent(1, 0)
+            Else
+            Cells(RowNo, 4) = FormatPercent(0, 0)
+            End If
+        End If
+End If
+
+Call SheetProtection
+End Sub
+
+Public Sub ClearRow()
+
+        Range(Cells(RowNo, 7), Cells(RowNo, 500)).Clear
+        Cells(RowNo, 4).Clear
+
+End Sub
+
+Public Sub DrawBar()
+
+GanttSheet.Unprotect
+
+Dim TodaysDateColumnNo  As Integer
+Dim WorkingDaysRemaining As Integer
+Dim BarLength As Integer
+Dim BarStart As Integer
+Dim BarEnd As Integer
+Dim Finished As Boolean
+Dim CellColour As String
+Dim CellValue As Variant
+Dim CellValue2 As Variant
+Dim DayNo As Integer
+Dim DateToCheck As Date
+
+TodaysDateColumnNo = DateDiff("D", Cells(5, 3), Date) + 7 'This is the column number of today's date on the calendar
+Me.ClearRow 'Clear any bars already on the row
+
+
+Application.ScreenUpdating = False
+
+'draw the bars using  dates to work out lengths. For dates <= today darken the bar unless they are overdue; in this case turn red
+'initalise a variable containing number of working days for task
+WorkingDaysRemaining = DaysToComplete
+
+'Check if task is complete using the dropdown
+If Cells(RowNo, 1) = "Yes" Then
+    Finished = True
+Else
+    Finished = False
+End If
+
+'Find starting column of bar
+BarStart = DateDiff("D", Cells(5, 3), TaskStartDate) + 7
+
+'inlialise the datetocheck as task start date
+DateToCheck = TaskStartDate
+
+'First find the last working day of the task and then decide what colour bar needs to be
+BarEnd = BarStart
+    
+While WorkingDaysRemaining > 0
+    'for each cell in the bar check if the dates is a week day or weekend
+    DayNo = DateDiff("D", LineInSand, DateToCheck) Mod 7
+    
+    'If weekend then increase barend but do not decrease work days remaining
+    If DayNo = 0 Or DayNo = 6 Then
+    BarEnd = BarEnd + 1
+    DateToCheck = DateToCheck + 1
+    Else ' weekday then increase barend and reduce workdays remaining
+    BarEnd = BarEnd + 1
+    DateToCheck = DateToCheck + 1
+    WorkingDaysRemaining = WorkingDaysRemaining - 1
+    End If
+Wend
+
+        'Find colour
+        'check if the last date is before today and the tickbox isnt ticked to indicate finished
+     If Not (Finished) And (BarEnd - 1 < TodaysDateColumnNo) Then
+            'Colour the whole bar red
+            CellColour = "Red"
+        Else
+           'then check if due date is today or in the next 2 workings days
+           
+           Select Case DayNo
+           Case 1:
+                If BarEnd - TodaysDateColumnNo < 6 And Not (Finished) Then
+                'Colour the whole bar orange
+                CellColour = "Orange"
+                Else
+                CellColour = "Green"
+                End If
+           Case 2:
+                If BarEnd - TodaysDateColumnNo < 7 And Not (Finished) Then
+                'Colour the whole bar orange
+                CellColour = "Orange"
+                Else
+                CellColour = "Green"
+                End If
+           Case Else:
+                If BarEnd - TodaysDateColumnNo < 4 And Not (Finished) Then
+                'Colour the whole bar orange
+                CellColour = "Orange"
+                Else
+                CellColour = "Green"
+                End If
+            End Select
+        End If
+
+    'reset workdaysreamining and date to check
+    WorkingDaysRemaining = DaysToComplete
+    DateToCheck = TaskStartDate
+    
+    While WorkingDaysRemaining > 0
+        'for each cell in the bar check if the dates is a week day or weekend
+            DayNo = DateDiff("D", LineInSand, DateToCheck) Mod 7
+        
+        'If weekend skip cell and loop again
+        If DayNo = 0 Or DayNo = 6 Then
+        'Increment the datetocheck and column no but do not alter the working days remaining
+        DateToCheck = DateToCheck + 1
+        BarStart = BarStart + 1
+        Else
+        'if weekday then colour cell
+                   
+            Select Case CellColour
+            Case "Red"
+                ThisWorkbook.Worksheets(SheetRef).Cells(RowNo, BarStart).Interior.Color = RGB(200, 50, 0)
+            Case "Orange"
+                ThisWorkbook.Worksheets(SheetRef).Cells(RowNo, BarStart).Interior.Color = RGB(255, 150, 0)
+            Case Else:
+                If BarStart <= TodaysDateColumnNo Then
+                'if value is a date in the past or today colour dark green
+                    ThisWorkbook.Worksheets(SheetRef).Cells(RowNo, BarStart).Interior.Color = RGB(0, 100, 0)
+                Else
+                'for dates after today colour light green
+                ThisWorkbook.Worksheets(SheetRef).Cells(RowNo, BarStart).Interior.Color = RGB(152, 251, 152)
+                End If
+            End Select
+        BarStart = BarStart + 1
+        DateToCheck = DateToCheck + 1
+        WorkingDaysRemaining = WorkingDaysRemaining - 1
+        End If
+    Wend
+
+    Me.PercentageCalc
+    Application.ScreenUpdating = True
+        Call SheetProtection
+End Sub
+
+Public Sub AddDropDown()
+'Sub will check if a drop already exists in column 1 in the same row as the task. If there is not one then one is created
+    If Not DropDownExists(ThisWorkbook.Worksheets(SheetRef).Cells(RowNo, 1)) Then
+    GanttSheet.Unprotect
+        With ActiveSheet.Cells(RowNo, 1).Validation
+        .Add Type:=xlValidateList, Formula1:="Yes,No"
+        .IgnoreBlank = True
+        .InCellDropdown = True
+        .ShowInput = True
+        End With
+    Cells(RowNo, 1) = "No"
+    Call SheetProtection
+    End If
+End Sub
+
+Public Sub RemoveDropDown()
+    GanttSheet.Unprotect
+    If DropDownExists(Cells(RowNo, 1)) Then
+       Cells(RowNo, 1).Validation.Delete
+    End If
+    Call SheetProtection
+End Sub
