@@ -6,6 +6,7 @@ Public Const LineInSand As Date = "03/01/2021" 'first sunday in 2021
 
 
 'module of public functions for gantt chart
+'James Meechan December 2021
 
 Public Sub SheetProtection()
 'sub to change permission on sheet. It prevents end users adding or deleting rows and columns
@@ -158,13 +159,3 @@ Else 'if date is in Jan or Feb check if year is a leap year
 End If
 End Function
 
-
-Sub main()
-Application.EnableEvents = True
-Application.ScreenUpdating = True
- Dim temp
-temp = LeapDayYears("01/03/2023")
-
-Debug.Print temp
-
-End Sub
